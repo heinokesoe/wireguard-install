@@ -122,9 +122,30 @@ function installQuestions() {
 	read -n1 -r -p "Press any key to continue..."
 }
 
+function auto() {
+	SERVER_PUB_IP=$(ip -4 addr | sed -ne 's|^.* inet \([^/]*\)/.* scope global.*$|\1|p' | awk '{print $1}' | head -1)
+	if [[ -z ${SERVER_PUB_IP} ]]; then
+		SERVER_PUB_IP=$(ip -6 addr | sed -ne 's|^.* inet6 \([^/]*\)/.* scope global.*$|\1|p' | head -1)
+	fi
+
+	SERVER_PUB_NIC="$(ip -4 route ls | grep default | grep -Po '(?<=dev )(\S+)' | head -1)"
+	
+	SERVER_WG_NIC=wg0
+	
+	SERVER_WG_IPV4=10.66.66.1
+	
+	SERVER_WG_IPV6=fd42:42:42::1
+	
+	SERVER_PORT=$(shuf -i49152-65535 -n1)
+	
+	CLIENT_DNS_1=1.1.1.1
+	
+	CLIENT_DNS_2=8.8.8.8
+}
+
 function installWireGuard() {
 	# Run setup questions first
-	installQuestions
+	[[ $1 == "--auto" ]] && auto || installQuestions
 
 	# Install WireGuard tools and module
 	if [[ ${OS} == 'ubuntu' ]] || [[ ${OS} == 'debian' && ${VERSION_ID} -gt 10 ]]; then
@@ -206,7 +227,7 @@ net.ipv6.conf.all.forwarding = 1" >/etc/sysctl.d/wg.conf
 	systemctl start "wg-quick@${SERVER_WG_NIC}"
 	systemctl enable "wg-quick@${SERVER_WG_NIC}"
 
-	newClient
+	[[ $# == 0 ]] && newClient
 	echo "If you want to add more clients, you simply need to run this script another time!"
 
 	# Check if WireGuard is running
@@ -451,5 +472,5 @@ if [[ -e /etc/wireguard/params ]]; then
 	source /etc/wireguard/params
 	manageMenu
 else
-	installWireGuard
+	installWireGuard $1
 fi
